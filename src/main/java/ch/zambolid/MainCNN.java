@@ -39,7 +39,7 @@ public class MainCNN {
 	private static final Logger log = LoggerFactory.getLogger(MainCNN.class);
 
 	// https://s3.amazonaws.com/dl4j-distribution/GoogleNews-vectors-negative300.bin.gz
-	private static final String WORD_VECTORS_PATH = "D:\\Java\\EclipseWorkspace\\word2vec-GoogleNews-vectors\\GoogleNews-vectors-negative300.bin.gz";
+	private static final String WORD_VECTORS_PATH = "C:\\Git\\GoogleNews-vectors-negative300.bin.gz";
 
 	public static void main(String[] args) throws IOException, InterruptedException {
 
@@ -73,27 +73,37 @@ public class MainCNN {
 		log.info("> Building Model ...");
 
 		ComputationGraphConfiguration config = new NeuralNetConfiguration.Builder().weightInit(WeightInit.RELU)
-				.activation(Activation.LEAKYRELU).updater(new Adam(0.01)).convolutionMode(ConvolutionMode.Same) // This
-																												// is
-																												// important
-																												// so we
-																												// can
-																												// 'stack'
-																												// the
-																												// results
-																												// later
-				.l2(0.0001).graphBuilder().addInputs("input")
+				.activation(Activation.LEAKYRELU)
+				.updater(new Adam(0.01))
+				.convolutionMode(ConvolutionMode.Same) // This
+														// is
+														// important
+														// so we
+														// can
+														// 'stack'
+														// the
+														// results
+														// later
+				.l2(0.0001)
+				.graphBuilder()
+				.addInputs("input")
 				.addLayer("cnn3",
-						new ConvolutionLayer.Builder().kernelSize(3, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(3, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				.addLayer("cnn4",
-						new ConvolutionLayer.Builder().kernelSize(4, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(4, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				.addLayer("cnn5",
-						new ConvolutionLayer.Builder().kernelSize(5, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(5, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				// MergeVertex performs depth concatenation on activations:
 				// 3x[minibatch,100,length,300] to 1x[minibatch,300,length,300]
@@ -104,11 +114,14 @@ public class MainCNN {
 						new GlobalPoolingLayer.Builder().poolingType(globalPoolingType).dropOut(0.5).build(), "merge")
 				.addLayer("out",
 						new OutputLayer.Builder().lossFunction(LossFunctions.LossFunction.MCXENT)
-								.activation(Activation.SOFTMAX).nOut(numberOfClasses).build(),
+								.activation(Activation.SOFTMAX)
+								.nOut(numberOfClasses)
+								.build(),
 						"globalPool")
 				.setOutputs("out")
 				// Input has shape [minibatch, channels=1, length=1 to 256, 300]
-				.setInputTypes(InputType.convolutional(truncateTextToLength, vectorSize, 1)).build();
+				.setInputTypes(InputType.convolutional(truncateTextToLength, vectorSize, 1))
+				.build();
 
 		ComputationGraph model = new ComputationGraph(config);
 		model.init();
@@ -128,9 +141,16 @@ public class MainCNN {
 	private static DataSetIterator getDataSetIterator(boolean isTraining, WordVectors wordVectors, int minibatchSize,
 			int maxSentenceLength) throws IOException, InterruptedException {
 
-		// TODO how to distinguish training/testing?
-		return new ClassifiedTextIterator(
-				new String[] { "lines_comedy-thriller-2Attrs_class-0.csv", "lines_comedy-thriller-2Attrs_class-1.csv" },
-				69908, new String[] { "thriller", "romantic" }, wordVectors, minibatchSize, maxSentenceLength);
+		if (isTraining) {
+			return new ClassifiedTextIterator(
+					new String[] { "lines-comedy_training.csv",
+							"lines-thriller_training.csv" },
+					69908, new String[] { "comedy", "thriller" }, wordVectors, minibatchSize, maxSentenceLength);
+		} else	{
+			return new ClassifiedTextIterator(
+					new String[] { "lines-comedy_testing.csv",
+							"lines-thriller_testing.csv" },
+					69908, new String[] { "comedy", "thriller" }, wordVectors, minibatchSize, maxSentenceLength);
+		}
 	}
 }
