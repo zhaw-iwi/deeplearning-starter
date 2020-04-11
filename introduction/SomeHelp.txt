@@ -1,0 +1,6 @@
+GoogleNews Vectors can be downloaded from here:
+https://s3.amazonaws.com/dl4j-distribution/GoogleNews-vectors-negative300.bin.gz
+
+You possibly need to add these arguments to your VM (start with the first one):
+-Xms1024m -Xmx6g (change this to more g if you own more :-))
+-Dorg.bytedeco.javacpp.maxbytes=10737418240
