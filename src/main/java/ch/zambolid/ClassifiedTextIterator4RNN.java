@@ -33,9 +33,9 @@ import org.slf4j.LoggerFactory;
  * @author Alexandre de Spindler (desa@zhaw.ch)
  * 
  */
-public class ClassifiedTextIterator implements DataSetIterator {
+public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
-	private static final Logger log = LoggerFactory.getLogger(ClassifiedTextIterator.class);
+	private static final Logger log = LoggerFactory.getLogger(ClassifiedTextIterator4RNN.class);
 
 	private final String[] pathsToCSVFilePerClass;
 	private final int smallestNumberOfLines;
@@ -70,7 +70,7 @@ public class ClassifiedTextIterator implements DataSetIterator {
 	 * @throws InterruptedException
 	 * @throws IOException
 	 */
-	public ClassifiedTextIterator(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
+	public ClassifiedTextIterator4RNN(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
 			WordVectors wordVectors, int batchSize, int truncateLength) throws IOException, InterruptedException {
 
 		this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
@@ -104,9 +104,10 @@ public class ClassifiedTextIterator implements DataSetIterator {
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(
 				"D:\\Java\\EclipseWorkspace\\word2vec-GoogleNews-vectors\\GoogleNews-vectors-negative300.bin.gz"));
-		DataSetIterator it = new ClassifiedTextIterator(
-				new String[] { "lines_comedy-thriller-2Attrs_class-0.csv", "lines_comedy-thriller-2Attrs_class-1.csv" },
-				69908, new String[] { "thriller", "romantic" }, wordVectors, 100, 200);
+		DataSetIterator it = new ClassifiedTextIterator4RNN(
+				new String[] { "classifiedtextdata/lines-comedy_training.csv",
+						"classifiedtextdata/lines-thriller_training.csv" },
+				69908, new String[] { "comedy", "thriller" }, wordVectors, 100, 200);
 		DataSet dataSet = it.next();
 		System.out.println(dataSet.getFeatures());
 	}
@@ -132,6 +133,10 @@ public class ClassifiedTextIterator implements DataSetIterator {
 		// 1 Read the (numberOfExamples / numberOfClasses) lines per class
 		List<List<String>> nLinesPerClass = new ArrayList<List<String>>(this.numberOfClasses);
 		for (String currentCSV : this.pathsToCSVFilePerClass) {
+
+			// TODO change record reader to sentence iterator (UIMA)
+			// https://deeplearning4j.konduit.ai/language-processing/sentence-iterator
+
 			RecordReader rr = new LineRecordReader();
 			rr.initialize(new FileSplit(new File(currentCSV)));
 
@@ -181,9 +186,9 @@ public class ClassifiedTextIterator implements DataSetIterator {
 				}
 
 				if (currentTokensFiltered.isEmpty()) {
-					ClassifiedTextIterator.log
+					ClassifiedTextIterator4RNN.log
 							.error("Line \"" + currentLine + "\" is left empty after WordVectors.hasWord()");
-					ClassifiedTextIterator.log
+					ClassifiedTextIterator4RNN.log
 							.warn("Line \"" + currentLine + "\" is replaced with word \"this be the\"");
 					currentTokensFiltered.add("this");
 					currentTokensFiltered.add("be");
