@@ -92,15 +92,23 @@ public class MainRNN {
 			int maxSentenceLength) throws IOException, InterruptedException {
 
 		if (isTraining) {
-			return new ClassifiedTextIterator4RNN(
+			return new ClassifiedTextIterator4RNN.Builder(
 					new String[] { "classifiedtextdata/lines-comedy_training.csv",
 							"classifiedtextdata/lines-thriller_training.csv" },
-					69908, new String[] { "comedy", "thriller" }, wordVectors, minibatchSize, maxSentenceLength);
+					69908, new String[] { "comedy", "thriller" })
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
+							.build();
 		} else {
-			return new ClassifiedTextIterator4RNN(
+			return new ClassifiedTextIterator4RNN.Builder(
 					new String[] { "classifiedtextdata/lines-comedy_testing.csv",
 							"classifiedtextdata/lines-thriller_testing.csv" },
-					69908, new String[] { "comedy", "thriller" }, wordVectors, minibatchSize, maxSentenceLength);
+					69908, new String[] { "comedy", "thriller" })
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
+							.build();
 		}
 	}
 }

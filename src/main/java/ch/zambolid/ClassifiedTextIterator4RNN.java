@@ -11,6 +11,7 @@ import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
 import org.deeplearning4j.text.sentenceiterator.SentenceIterator;
+import org.deeplearning4j.text.tokenization.tokenizer.Tokenizer;
 import org.deeplearning4j.text.tokenization.tokenizer.preprocessor.CommonPreprocessor;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.DefaultTokenizerFactory;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.TokenizerFactory;
@@ -33,6 +34,9 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public class ClassifiedTextIterator4RNN implements DataSetIterator {
+	public enum UnknownWordHandling {
+		RemoveWord, UseUnknownVector
+	}
 
 	private static final Logger log = LoggerFactory.getLogger(ClassifiedTextIterator4RNN.class);
 
@@ -44,8 +48,8 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	private final WordVectors wordVectors;
 	private final int vectorSize;
 
-	private final int batchSize;
-	private final int truncateLength;
+	private final int minibatchSize;
+	private final int maxSentenceLength;
 
 	private final TokenizerFactory tokenizerFactory;
 
@@ -61,30 +65,26 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	 *                               number of lines
 	 * @param labels                 will be matched with pathsToCSVFilesPerClass
 	 *                               along position
-	 * @param wordVectors            WordVectors object
-	 * @param batchSize              Size of each minibatch for training
-	 * @param truncateLength         If text exceeds this length, it will be
-	 *                               truncated
 	 * 
 	 * @throws InterruptedException
 	 * @throws IOException
 	 */
 	public ClassifiedTextIterator4RNN(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
-			WordVectors wordVectors, int batchSize, int truncateLength) throws IOException, InterruptedException {
+			Builder builder) throws IOException, InterruptedException {
+
+		this.wordVectors = builder.wordVectors;
+		this.minibatchSize = builder.minibatchSize;
+		this.maxSentenceLength = builder.maxSentenceLength;
 
 		this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
 		this.smallestNumberOfLines = smallestNumberOfLines;
 		this.labels = labels;
 		this.numberOfClasses = this.pathsToCSVFilePerClass.length;
 
-		this.wordVectors = wordVectors;
 		this.vectorSize = wordVectors.getWordVector(wordVectors.vocab().wordAtIndex(0)).length;
 
-		this.batchSize = batchSize;
-		this.truncateLength = truncateLength;
-
-		this.tokenizerFactory = new DefaultTokenizerFactory();
-		tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor()); // TODO StemmingPreprocessor?
+		this.tokenizerFactory = builder.tokenizerFactory;
+		this.tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor()); // TODO StemmingPreprocessor?
 
 		this.reset();
 	}
@@ -102,10 +102,14 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		DataSetIterator it = new ClassifiedTextIterator4RNN(
+		DataSetIterator it = new ClassifiedTextIterator4RNN.Builder(
 				new String[] { "classifiedtextdata/lines-comedy_training.csv",
 						"classifiedtextdata/lines-thriller_training.csv" },
-				69908, new String[] { "comedy", "thriller" }, wordVectors, 100, 200);
+				69908, new String[] { "comedy", "thriller" }).wordVectors(wordVectors)
+						.minibatchSize(32)
+						.maxSentenceLength(200)
+						.build();
+
 		DataSet dataSet = it.next();
 		System.out.println(dataSet.getFeatures());
 	}
@@ -123,7 +127,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 		if (numberOfExamples % this.numberOfClasses != 0) {
 			throw new IllegalArgumentException(
-					"ClassifiedTextIterator.nextDataSet() cannot read an equal amount of examples per class with the given numberOfExamples and numberOfClasses");
+					"ClassifiedTextIterator.nextDataSet(int) cannot read an equal amount of examples per class with the given numberOfExamples and numberOfClasses");
 		}
 		int numPerClass = numberOfExamples / this.numberOfClasses;
 		int cursorPerClass = this.cursor / this.numberOfClasses;
@@ -144,7 +148,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			}
 			if (!sentenceIt.hasNext()) {
 				throw new Exception(
-						"ClassifiedTextIterator.nextDataSet() is trying skip more lines than available in file");
+						"ClassifiedTextIterator.nextDataSet(int) is trying skip more lines than available in file (next() despite hasNext() == null?)");
 			}
 
 			List<String> nLines = new ArrayList<String>(numPerClass);
@@ -155,8 +159,12 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			}
 			nLinesPerClass.add(nLines);
 			if (linesRead < numPerClass && !sentenceIt.hasNext()) {
-				throw new Exception(
-						"ClassifiedTextIterator.nextDataSet() was unable to read (numberOfExamples / numberOfClasses) of lines because less lines are left in file");
+				// throw new Exception(
+				// "ClassifiedTextIterator.nextDataSet() was unable to read (numberOfExamples /
+				// numberOfClasses) of lines because less lines are left in file");
+				ClassifiedTextIterator4RNN.log.error(
+						"ClassifiedTextIterator.nextDataSet(int) was unable to read (numberOfExamples / numberOfClasses) of lines because less lines are left in file (probably in last batch?)");
+				numPerClass = linesRead;
 			}
 		}
 
@@ -165,38 +173,32 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		List<List<String>> allTokensForOneClass;
 
 		List<String> currentTokens;
-		List<String> currentTokensFiltered;
 		int maxLength = 0;
 
 		for (List<String> linesForOneClass : nLinesPerClass) {
 			allTokensForOneClass = new ArrayList<List<String>>(numPerClass);
 			for (String currentLine : linesForOneClass) {
-				currentTokens = this.tokenizerFactory.create(currentLine).getTokens();
-				currentTokensFiltered = new ArrayList<String>();
-				for (String t : currentTokens) {
-					if (this.wordVectors.hasWord(t)) {
-						currentTokensFiltered.add(t);
-					}
-				}
+				currentTokens = this.tokenizeSentence(currentLine);
 
-				if (currentTokensFiltered.isEmpty()) {
+				if (currentTokens.isEmpty()) {
+					// TODO handle this!
 					ClassifiedTextIterator4RNN.log
 							.error("Line \"" + currentLine + "\" is left empty after WordVectors.hasWord()");
 					ClassifiedTextIterator4RNN.log
 							.warn("Line \"" + currentLine + "\" is replaced with word \"this be the\"");
-					currentTokensFiltered.add("this");
-					currentTokensFiltered.add("be");
-					currentTokensFiltered.add("the");
+					currentTokens.add("this");
+					currentTokens.add("be");
+					currentTokens.add("the");
 				}
 
-				allTokensForOneClass.add(currentTokensFiltered);
-				maxLength = Math.max(maxLength, currentTokensFiltered.size());
+				allTokensForOneClass.add(currentTokens);
+				maxLength = Math.max(maxLength, currentTokens.size());
 			}
 			allTokensPerClass.add(allTokensForOneClass);
 		}
 
-		if (maxLength > truncateLength) {
-			maxLength = truncateLength;
+		if (maxLength > maxSentenceLength) {
+			maxLength = maxSentenceLength;
 		}
 
 		// 3 Map Tokens to Word Vectors, then put Word Vectors and Labels into NDArrays
@@ -247,6 +249,20 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		return new DataSet(features, labels, featuresMask, labelsMask);
 	}
 
+	private List<String> tokenizeSentence(String sentence) {
+		Tokenizer t = this.tokenizerFactory.create(sentence);
+
+		List<String> result = new ArrayList<>();
+		while (t.hasMoreTokens()) {
+			String token = t.nextToken();
+			if (!this.wordVectors.outOfVocabularySupported() && !this.wordVectors.hasWord(token)) {
+				continue;
+			}
+			result.add(token);
+		}
+		return result;
+	}
+
 	@Override
 	public boolean hasNext() {
 		return this.cursor < this.totalExamples();
@@ -254,7 +270,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 	@Override
 	public DataSet next() {
-		return this.next(this.batchSize);
+		return this.next(this.minibatchSize);
 	}
 
 	@Override
@@ -297,7 +313,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 	@Override
 	public int batch() {
-		return this.batchSize;
+		return this.minibatchSize;
 	}
 
 	@Override
@@ -349,5 +365,68 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		}
 
 		return features;
+	}
+
+	public static class Builder {
+
+		private WordVectors wordVectors;
+		private TokenizerFactory tokenizerFactory = new DefaultTokenizerFactory();
+		private int maxSentenceLength = -1;
+		private int minibatchSize = 32;
+
+		private String[] pathsToCSVFilePerClass;
+		private int smallestNumberOfLines;
+		private String[] labels;
+
+		public Builder(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels) {
+			this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
+			this.smallestNumberOfLines = smallestNumberOfLines;
+			this.labels = labels;
+		}
+
+		/**
+		 * Provide the WordVectors instance that should be used for training
+		 */
+		public Builder wordVectors(WordVectors wordVectors) {
+			this.wordVectors = wordVectors;
+			return this;
+		}
+
+		/**
+		 * The {@link TokenizerFactory} that should be used. Defaults to
+		 * {@link DefaultTokenizerFactory}
+		 */
+		public Builder tokenizerFactory(TokenizerFactory tokenizerFactory) {
+			this.tokenizerFactory = tokenizerFactory;
+			return this;
+		}
+
+		/**
+		 * Minibatch size to use for the DataSetIterator
+		 */
+		public Builder minibatchSize(int minibatchSize) {
+			this.minibatchSize = minibatchSize;
+			return this;
+		}
+
+		/**
+		 * Maximum sentence/document length. If sentences exceed this, they will be
+		 * truncated to this length by taking the first 'maxSentenceLength' known words.
+		 */
+		public Builder maxSentenceLength(int maxSentenceLength) {
+			this.maxSentenceLength = maxSentenceLength;
+			return this;
+		}
+
+		public ClassifiedTextIterator4RNN build() throws IOException, InterruptedException {
+			if (wordVectors == null) {
+				throw new IllegalStateException(
+						"Cannot build ClassifiedTextIterator4Rnn without a WordVectors instance");
+			}
+
+			return new ClassifiedTextIterator4RNN(this.pathsToCSVFilePerClass, this.smallestNumberOfLines, this.labels,
+					this);
+		}
+
 	}
 }

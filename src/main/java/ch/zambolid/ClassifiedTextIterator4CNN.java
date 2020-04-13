@@ -13,6 +13,8 @@ import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
 import org.deeplearning4j.text.sentenceiterator.SentenceIterator;
+import org.deeplearning4j.text.tokenization.tokenizerfactory.DefaultTokenizerFactory;
+import org.deeplearning4j.text.tokenization.tokenizerfactory.TokenizerFactory;
 import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.dataset.api.DataSetPreProcessor;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
@@ -40,13 +42,9 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 	 *                               number of lines
 	 * @param labels                 will be matched with pathsToCSVFilesPerClass
 	 *                               along position
-	 * @param wordVectors            WordVectors object
-	 * @param batchSize              Size of each minibatch for training
-	 * @param truncateLength         If text exceeds this length, it will be
-	 *                               truncated
 	 */
 	public ClassifiedTextIterator4CNN(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
-			WordVectors wordVectors, int batchSize, int truncateLength) {
+			Builder builder) {
 
 		List<String> texts = new ArrayList<String>();
 		List<String> textsLabels = new ArrayList<String>();
@@ -64,9 +62,10 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		LabeledSentenceProvider sentenceProvider = new CollectionLabeledSentenceProvider(texts, textsLabels);
 
 		this.it = new CnnSentenceDataSetIterator.Builder(Format.CNN2D).sentenceProvider(sentenceProvider)
-				.wordVectors(wordVectors)
-				.minibatchSize(batchSize)
-				.maxSentenceLength(truncateLength)
+				.wordVectors(builder.wordVectors)
+				.tokenizerFactory(builder.tokenizerFactory)
+				.minibatchSize(builder.minibatchSize)
+				.maxSentenceLength(builder.maxSentenceLength)
 				.useNormalizedWordVectors(false)
 				.build();
 
@@ -85,10 +84,14 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		DataSetIterator it = new ClassifiedTextIterator4CNN(
+		DataSetIterator it = new ClassifiedTextIterator4CNN.Builder(
 				new String[] { "classifiedtextdata/lines-comedy_training.csv",
 						"classifiedtextdata/lines-thriller_training.csv" },
-				69908, new String[] { "comedy", "thriller" }, wordVectors, 100, 200);
+				69908, new String[] { "comedy", "thriller" }).wordVectors(wordVectors)
+						.minibatchSize(32)
+						.maxSentenceLength(200)
+						.build();
+
 		DataSet dataSet = it.next();
 		System.out.println(dataSet.getFeatures());
 	}
@@ -151,6 +154,69 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 	@Override
 	public List<String> getLabels() {
 		return this.it.getLabels();
+	}
+
+	public static class Builder {
+
+		private WordVectors wordVectors;
+		private TokenizerFactory tokenizerFactory = new DefaultTokenizerFactory();
+		private int maxSentenceLength = -1;
+		private int minibatchSize = 32;
+
+		private String[] pathsToCSVFilePerClass;
+		private int smallestNumberOfLines;
+		private String[] labels;
+
+		public Builder(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels) {
+			this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
+			this.smallestNumberOfLines = smallestNumberOfLines;
+			this.labels = labels;
+		}
+
+		/**
+		 * Provide the WordVectors instance that should be used for training
+		 */
+		public Builder wordVectors(WordVectors wordVectors) {
+			this.wordVectors = wordVectors;
+			return this;
+		}
+
+		/**
+		 * The {@link TokenizerFactory} that should be used. Defaults to
+		 * {@link DefaultTokenizerFactory}
+		 */
+		public Builder tokenizerFactory(TokenizerFactory tokenizerFactory) {
+			this.tokenizerFactory = tokenizerFactory;
+			return this;
+		}
+
+		/**
+		 * Minibatch size to use for the DataSetIterator
+		 */
+		public Builder minibatchSize(int minibatchSize) {
+			this.minibatchSize = minibatchSize;
+			return this;
+		}
+
+		/**
+		 * Maximum sentence/document length. If sentences exceed this, they will be
+		 * truncated to this length by taking the first 'maxSentenceLength' known words.
+		 */
+		public Builder maxSentenceLength(int maxSentenceLength) {
+			this.maxSentenceLength = maxSentenceLength;
+			return this;
+		}
+
+		public ClassifiedTextIterator4CNN build() throws IOException, InterruptedException {
+			if (wordVectors == null) {
+				throw new IllegalStateException(
+						"Cannot build ClassifiedTextIterator4Rnn without a WordVectors instance");
+			}
+
+			return new ClassifiedTextIterator4CNN(this.pathsToCSVFilePerClass, this.smallestNumberOfLines, this.labels,
+					this);
+		}
+
 	}
 
 }
