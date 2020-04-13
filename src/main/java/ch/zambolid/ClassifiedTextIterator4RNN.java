@@ -147,6 +147,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				linesSkipped++;
 			}
 			if (!sentenceIt.hasNext()) {
+				this.cursor = Integer.MAX_VALUE;
 				throw new Exception(
 						"ClassifiedTextIterator.nextDataSet(int) is trying skip more lines than available in file (next() despite hasNext() == null?)");
 			}
@@ -165,6 +166,9 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				ClassifiedTextIterator4RNN.log.error(
 						"ClassifiedTextIterator.nextDataSet(int) was unable to read (numberOfExamples / numberOfClasses) of lines because less lines are left in file (probably in last batch?)");
 				numPerClass = linesRead;
+				this.cursor = Integer.MAX_VALUE;
+			} else {
+				this.cursor += numberOfExamples;
 			}
 		}
 
@@ -245,7 +249,6 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			}
 		}
 
-		this.cursor += numberOfExamples;
 		return new DataSet(features, labels, featuresMask, labelsMask);
 	}
 
