@@ -2,17 +2,13 @@ package ch.zambolid;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator;
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator.Format;
 import org.deeplearning4j.iterator.LabeledSentenceProvider;
-import org.deeplearning4j.iterator.provider.CollectionLabeledSentenceProvider;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
-import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
-import org.deeplearning4j.text.sentenceiterator.SentenceIterator;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.DefaultTokenizerFactory;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.TokenizerFactory;
 import org.nd4j.linalg.dataset.DataSet;
@@ -38,36 +34,17 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 	 *                               of classes. The first will be class = 0, the
 	 *                               second class = 1 and the last one class =
 	 *                               (number of classes -1)
-	 * @param smallestNumberOfLines  the number of lines of the file with the least
-	 *                               number of lines
 	 * @param labels                 will be matched with pathsToCSVFilesPerClass
 	 *                               along position
 	 */
-	public ClassifiedTextIterator4CNN(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
-			Builder builder) {
+	public ClassifiedTextIterator4CNN(String[] pathsToCSVFilePerClass, String[] labels, Builder builder) {
 
-		List<String> texts = new ArrayList<String>();
-		List<String> textsLabels = new ArrayList<String>();
-
-		SentenceIterator sentenceIt;
-		for (int i = 0; i < pathsToCSVFilePerClass.length; i++) {
-
-			sentenceIt = new LineSentenceIterator(new File(pathsToCSVFilePerClass[i]));
-			while (sentenceIt.hasNext()) {
-				texts.add(sentenceIt.nextSentence());
-				textsLabels.add(labels[i]);
-			}
-		}
-
-		LabeledSentenceProvider sentenceProvider = new CollectionLabeledSentenceProvider(texts, textsLabels);
+		LabeledSentenceProvider sentenceProvider = Paths.createSentenceProvider(pathsToCSVFilePerClass, labels);
 
 		this.it = new CnnSentenceDataSetIterator.Builder(Format.CNN2D).sentenceProvider(sentenceProvider)
-				.wordVectors(builder.wordVectors)
-				.tokenizerFactory(builder.tokenizerFactory)
-				.minibatchSize(builder.minibatchSize)
-				.maxSentenceLength(builder.maxSentenceLength)
-				.useNormalizedWordVectors(false)
-				.build();
+				.wordVectors(builder.wordVectors).tokenizerFactory(builder.tokenizerFactory)
+				.minibatchSize(builder.minibatchSize).maxSentenceLength(builder.maxSentenceLength)
+				.useNormalizedWordVectors(false).build();
 
 	}
 
@@ -84,16 +61,18 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		DataSetIterator it = new ClassifiedTextIterator4CNN.Builder(
-				new String[] { "classifiedtextdata/lines-comedy_training.csv",
-						"classifiedtextdata/lines-thriller_training.csv" },
-				69908, new String[] { "comedy", "thriller" }).wordVectors(wordVectors)
-						.minibatchSize(32)
-						.maxSentenceLength(200)
+		DataSetIterator it = new ClassifiedTextIterator4CNN.Builder(new String[] {
+				"classifiedtextdata/lines-comedy_training.csv", "classifiedtextdata/lines-thriller_training.csv" },
+				new String[] { "comedy", "thriller" }).wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200)
 						.build();
 
-		DataSet dataSet = it.next();
-		System.out.println(dataSet.getFeatures());
+		DataSet current;
+		int count = 0;
+		while (it.hasNext()) {
+			current = it.next();
+			count++;
+			System.out.println("DataSet[" + count + "] " + current.numExamples());
+		}
 	}
 
 	@Override
@@ -164,12 +143,10 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		private int minibatchSize = 32;
 
 		private String[] pathsToCSVFilePerClass;
-		private int smallestNumberOfLines;
 		private String[] labels;
 
-		public Builder(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels) {
+		public Builder(String[] pathsToCSVFilePerClass, String[] labels) {
 			this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
-			this.smallestNumberOfLines = smallestNumberOfLines;
 			this.labels = labels;
 		}
 
@@ -213,8 +190,7 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 						"Cannot build ClassifiedTextIterator4Rnn without a WordVectors instance");
 			}
 
-			return new ClassifiedTextIterator4CNN(this.pathsToCSVFilePerClass, this.smallestNumberOfLines, this.labels,
-					this);
+			return new ClassifiedTextIterator4CNN(this.pathsToCSVFilePerClass, this.labels, this);
 		}
 
 	}

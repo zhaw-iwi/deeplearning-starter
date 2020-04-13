@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
@@ -41,7 +43,6 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	private static final Logger log = LoggerFactory.getLogger(ClassifiedTextIterator4RNN.class);
 
 	private final String[] pathsToCSVFilePerClass;
-	private final int smallestNumberOfLines;
 	private final String[] labels;
 	private final int numberOfClasses;
 
@@ -54,6 +55,9 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	private final TokenizerFactory tokenizerFactory;
 
 	private int cursor;
+	private boolean noMoreinAtLeastOneFile;
+
+	private final Map<Integer, Integer> nOfReplacementsPerClass;
 
 	/**
 	 * @param pathsToCSVFilePerClass the CSV file for each class containing one line
@@ -61,30 +65,29 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	 *                               of classes. The first will be class = 0, the
 	 *                               second class = 1 and the last one class =
 	 *                               (number of classes -1)
-	 * @param smallestNumberOfLines  the number of lines of the file with the least
-	 *                               number of lines
 	 * @param labels                 will be matched with pathsToCSVFilesPerClass
 	 *                               along position
 	 * 
 	 * @throws InterruptedException
 	 * @throws IOException
 	 */
-	public ClassifiedTextIterator4RNN(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels,
-			Builder builder) throws IOException, InterruptedException {
+	public ClassifiedTextIterator4RNN(String[] pathsToCSVFilePerClass, String[] labels, Builder builder)
+			throws IOException, InterruptedException {
 
 		this.wordVectors = builder.wordVectors;
 		this.minibatchSize = builder.minibatchSize;
 		this.maxSentenceLength = builder.maxSentenceLength;
 
 		this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
-		this.smallestNumberOfLines = smallestNumberOfLines;
 		this.labels = labels;
 		this.numberOfClasses = this.pathsToCSVFilePerClass.length;
 
 		this.vectorSize = wordVectors.getWordVector(wordVectors.vocab().wordAtIndex(0)).length;
 
 		this.tokenizerFactory = builder.tokenizerFactory;
-		this.tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor()); // TODO StemmingPreprocessor?
+		this.tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor());
+
+		this.nOfReplacementsPerClass = new HashMap<Integer, Integer>();
 
 		this.reset();
 	}
@@ -102,20 +105,18 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		DataSetIterator it = new ClassifiedTextIterator4RNN.Builder(
-				new String[] { "classifiedtextdata/lines-comedy_training.csv",
-						"classifiedtextdata/lines-thriller_training.csv" },
-				69908, new String[] { "comedy", "thriller" }).wordVectors(wordVectors)
-						.minibatchSize(32)
-						.maxSentenceLength(200)
+		DataSetIterator it = new ClassifiedTextIterator4RNN.Builder(new String[] {
+				"classifiedtextdata/lines-comedy_training.csv", "classifiedtextdata/lines-thriller_training.csv" },
+				new String[] { "comedy", "thriller" }).wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200)
 						.build();
 
-		DataSet dataSet = it.next();
-		System.out.println(dataSet.getFeatures());
-	}
-
-	public int totalExamples() {
-		return this.smallestNumberOfLines * this.numberOfClasses;
+		DataSet current;
+		int count = 0;
+		while (it.hasNext()) {
+			current = it.next();
+			count++;
+			System.out.println("DataSet[" + count + "] " + current.numExamples());
+		}
 	}
 
 	/**
@@ -147,7 +148,8 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				linesSkipped++;
 			}
 			if (!sentenceIt.hasNext()) {
-				this.cursor = Integer.MAX_VALUE;
+				// TODO do we need to set this here as well? possibly enough 20 lines below?
+				this.noMoreinAtLeastOneFile = true;
 				throw new Exception(
 						"ClassifiedTextIterator.nextDataSet(int) is trying skip more lines than available in file (next() despite hasNext() == null?)");
 			}
@@ -159,17 +161,13 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				linesRead++;
 			}
 			nLinesPerClass.add(nLines);
-			if (linesRead < numPerClass && !sentenceIt.hasNext()) {
-				// throw new Exception(
-				// "ClassifiedTextIterator.nextDataSet() was unable to read (numberOfExamples /
-				// numberOfClasses) of lines because less lines are left in file");
-				ClassifiedTextIterator4RNN.log.error(
-						"ClassifiedTextIterator.nextDataSet(int) was unable to read (numberOfExamples / numberOfClasses) of lines because less lines are left in file (probably in last batch?)");
+			if (!sentenceIt.hasNext() && linesRead < numPerClass) {
+				ClassifiedTextIterator4RNN.log.warn(
+						"ClassifiedTextIterator.nextDataSet(int) was unable to read full batch of lines because less lines are left in file");
 				numPerClass = linesRead;
-				this.cursor = Integer.MAX_VALUE;
-			} else {
-				this.cursor += numberOfExamples;
+				this.noMoreinAtLeastOneFile = true;
 			}
+			this.cursor += numPerClass;
 		}
 
 		// 2 Tokenize all lines per class
@@ -179,6 +177,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		List<String> currentTokens;
 		int maxLength = 0;
 
+		int currentClassMapKey = 0;
 		for (List<String> linesForOneClass : nLinesPerClass) {
 			allTokensForOneClass = new ArrayList<List<String>>(numPerClass);
 			for (String currentLine : linesForOneClass) {
@@ -186,19 +185,20 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 				if (currentTokens.isEmpty()) {
 					// TODO handle this!
-					ClassifiedTextIterator4RNN.log
-							.error("Line \"" + currentLine + "\" is left empty after WordVectors.hasWord()");
-					ClassifiedTextIterator4RNN.log
-							.warn("Line \"" + currentLine + "\" is replaced with word \"this be the\"");
+					ClassifiedTextIterator4RNN.log.warn("Line \"" + currentLine
+							+ "\" is replaced with words \"this be the\" because it was left empty after tokenization/filtering");
 					currentTokens.add("this");
 					currentTokens.add("be");
 					currentTokens.add("the");
+					this.nOfReplacementsPerClass.put(currentClassMapKey,
+							this.nOfReplacementsPerClass.get(currentClassMapKey) + 1);
 				}
 
 				allTokensForOneClass.add(currentTokens);
 				maxLength = Math.max(maxLength, currentTokens.size());
 			}
 			allTokensPerClass.add(allTokensForOneClass);
+			currentClassMapKey++;
 		}
 
 		if (maxLength > maxSentenceLength) {
@@ -268,7 +268,14 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 	@Override
 	public boolean hasNext() {
-		return this.cursor < this.totalExamples();
+		if (this.noMoreinAtLeastOneFile) {
+			for (Integer currentClassMapKey : this.nOfReplacementsPerClass.keySet()) {
+				ClassifiedTextIterator4RNN.log.warn("Class[" + currentClassMapKey + "] had "
+						+ this.nOfReplacementsPerClass.get(currentClassMapKey) + " replacements");
+			}
+			return false;
+		}
+		return true;
 	}
 
 	@Override
@@ -278,7 +285,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 	@Override
 	public DataSet next(int num) {
-		if (this.cursor >= this.smallestNumberOfLines * this.numberOfClasses) {
+		if (!this.hasNext()) {
 			throw new NoSuchElementException(
 					"ClassifiedTextIterator.next(int) cannot return any more data given the number of lines available per class");
 		}
@@ -312,6 +319,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 	@Override
 	public void reset() {
 		this.cursor = 0;
+		this.noMoreinAtLeastOneFile = false;
+		for (int i = 0; i < this.numberOfClasses; i++) {
+			this.nOfReplacementsPerClass.put(i, 0);
+		}
 	}
 
 	@Override
@@ -378,12 +389,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		private int minibatchSize = 32;
 
 		private String[] pathsToCSVFilePerClass;
-		private int smallestNumberOfLines;
 		private String[] labels;
 
-		public Builder(String[] pathsToCSVFilePerClass, int smallestNumberOfLines, String[] labels) {
+		public Builder(String[] pathsToCSVFilePerClass, String[] labels) {
 			this.pathsToCSVFilePerClass = pathsToCSVFilePerClass;
-			this.smallestNumberOfLines = smallestNumberOfLines;
 			this.labels = labels;
 		}
 
@@ -427,8 +436,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 						"Cannot build ClassifiedTextIterator4Rnn without a WordVectors instance");
 			}
 
-			return new ClassifiedTextIterator4RNN(this.pathsToCSVFilePerClass, this.smallestNumberOfLines, this.labels,
-					this);
+			return new ClassifiedTextIterator4RNN(this.pathsToCSVFilePerClass, this.labels, this);
 		}
 
 	}
