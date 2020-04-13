@@ -7,11 +7,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.datavec.api.records.reader.RecordReader;
-import org.datavec.api.records.reader.impl.LineRecordReader;
-import org.datavec.api.split.FileSplit;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
+import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
+import org.deeplearning4j.text.sentenceiterator.SentenceIterator;
 import org.deeplearning4j.text.tokenization.tokenizer.preprocessor.CommonPreprocessor;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.DefaultTokenizerFactory;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.TokenizerFactory;
@@ -131,35 +130,31 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 		// 1 Read the (numberOfExamples / numberOfClasses) lines per class
 		List<List<String>> nLinesPerClass = new ArrayList<List<String>>(this.numberOfClasses);
+
+		SentenceIterator sentenceIt;
 		for (String currentCSV : this.pathsToCSVFilePerClass) {
 
-			// TODO change record reader to sentence iterator (UIMA)
-			// https://deeplearning4j.konduit.ai/language-processing/sentence-iterator
-
-			RecordReader rr = new LineRecordReader();
-			rr.initialize(new FileSplit(new File(currentCSV)));
+			sentenceIt = new LineSentenceIterator(new File(currentCSV));
 
 			// skip lines < this.cursor
 			int linesSkipped = 0;
-			while (linesSkipped < cursorPerClass && rr.hasNext()) {
-				rr.next();
+			while (linesSkipped < cursorPerClass && sentenceIt.hasNext()) {
+				sentenceIt.nextSentence();
 				linesSkipped++;
 			}
-			if (!rr.hasNext()) {
-				rr.close();
+			if (!sentenceIt.hasNext()) {
 				throw new Exception(
 						"ClassifiedTextIterator.nextDataSet() is trying skip more lines than available in file");
 			}
 
 			List<String> nLines = new ArrayList<String>(numPerClass);
 			int linesRead = 0;
-			while (linesRead < numPerClass && rr.hasNext()) {
-				nLines.add(rr.next().get(0).toString());
+			while (linesRead < numPerClass && sentenceIt.hasNext()) {
+				nLines.add(sentenceIt.nextSentence());
 				linesRead++;
 			}
 			nLinesPerClass.add(nLines);
-			rr.close();
-			if (linesRead < numPerClass && !rr.hasNext()) {
+			if (linesRead < numPerClass && !sentenceIt.hasNext()) {
 				throw new Exception(
 						"ClassifiedTextIterator.nextDataSet() was unable to read (numberOfExamples / numberOfClasses) of lines because less lines are left in file");
 			}
