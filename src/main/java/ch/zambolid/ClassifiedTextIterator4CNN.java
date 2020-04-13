@@ -7,6 +7,8 @@ import java.util.List;
 
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator;
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator.Format;
+import org.deeplearning4j.iterator.LabeledSentenceProvider;
+import org.deeplearning4j.iterator.provider.CollectionLabeledSentenceProvider;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
@@ -15,8 +17,6 @@ import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.dataset.api.DataSetPreProcessor;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.factory.Nd4j;
-import org.deeplearning4j.iterator.LabeledSentenceProvider;
-import org.deeplearning4j.iterator.provider.CollectionLabeledSentenceProvider;
 
 /**
  * Zurich University of Applied Sciences (ZHAW), Institute for Business
@@ -64,8 +64,11 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		LabeledSentenceProvider sentenceProvider = new CollectionLabeledSentenceProvider(texts, textsLabels);
 
 		this.it = new CnnSentenceDataSetIterator.Builder(Format.CNN2D).sentenceProvider(sentenceProvider)
-				.wordVectors(wordVectors).minibatchSize(batchSize).maxSentenceLength(truncateLength)
-				.useNormalizedWordVectors(false).build();
+				.wordVectors(wordVectors)
+				.minibatchSize(batchSize)
+				.maxSentenceLength(truncateLength)
+				.useNormalizedWordVectors(false)
+				.build();
 
 	}
 
@@ -81,8 +84,7 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
-		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(
-				"D:\\Java\\EclipseWorkspace\\word2vec-GoogleNews-vectors\\GoogleNews-vectors-negative300.bin.gz"));
+		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
 		DataSetIterator it = new ClassifiedTextIterator4CNN(
 				new String[] { "classifiedtextdata/lines-comedy_training.csv",
 						"classifiedtextdata/lines-thriller_training.csv" },

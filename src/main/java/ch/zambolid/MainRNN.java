@@ -35,9 +35,6 @@ public class MainRNN {
 
 	private static final Logger log = LoggerFactory.getLogger(MainRNN.class);
 
-	// https://s3.amazonaws.com/dl4j-distribution/GoogleNews-vectors-negative300.bin.gz
-	private static final String WORD_VECTORS_PATH = "D:\\Java\\EclipseWorkspace\\word2vec-GoogleNews-vectors\\GoogleNews-vectors-negative300.bin.gz";
-
 	public static void main(String[] args) throws IOException, InterruptedException {
 
 		log.info("> Hello RNN :-)");
@@ -55,18 +52,25 @@ public class MainRNN {
 
 		int batchSize = 32;
 
-		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(WORD_VECTORS_PATH));
+		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
 		DataSetIterator trainData = getDataSetIterator(true, wordVectors, batchSize, truncateTextToLength);
 		DataSetIterator testData = getDataSetIterator(false, wordVectors, batchSize, truncateTextToLength);
 
 		log.info("> Building Model ...");
 
-		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder().seed(seed).updater(new Adam(5e-3)).l2(1e-5)
-				.weightInit(WeightInit.XAVIER).gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
-				.gradientNormalizationThreshold(1.0).list()
+		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder().seed(seed)
+				.updater(new Adam(5e-3))
+				.l2(1e-5)
+				.weightInit(WeightInit.XAVIER)
+				.gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
+				.gradientNormalizationThreshold(1.0)
+				.list()
 				.layer(new LSTM.Builder().nIn(vectorSize).nOut(256).activation(Activation.TANH).build())
 				.layer(new RnnOutputLayer.Builder().activation(Activation.SOFTMAX)
-						.lossFunction(LossFunctions.LossFunction.MCXENT).nIn(256).nOut(numberOfClasses).build())
+						.lossFunction(LossFunctions.LossFunction.MCXENT)
+						.nIn(256)
+						.nOut(numberOfClasses)
+						.build())
 				.build();
 
 		MultiLayerNetwork model = new MultiLayerNetwork(conf);

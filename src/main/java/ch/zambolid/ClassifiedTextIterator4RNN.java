@@ -102,8 +102,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
-		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(
-				"D:\\Java\\EclipseWorkspace\\word2vec-GoogleNews-vectors\\GoogleNews-vectors-negative300.bin.gz"));
+		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
 		DataSetIterator it = new ClassifiedTextIterator4RNN(
 				new String[] { "classifiedtextdata/lines-comedy_training.csv",
 						"classifiedtextdata/lines-thriller_training.csv" },
