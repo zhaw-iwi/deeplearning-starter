@@ -117,6 +117,9 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			count++;
 			System.out.println("DataSet[" + count + "] " + current.numExamples());
 		}
+
+		current = it.next();
+		System.out.println("DataSet[OnceMore] " + current.numExamples());
 	}
 
 	/**
@@ -141,19 +144,20 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 			sentenceIt = new LineSentenceIterator(new File(currentCSV));
 
-			// skip lines < this.cursor
+			// a. skip lines < this.cursor
 			int linesSkipped = 0;
 			while (linesSkipped < cursorPerClass && sentenceIt.hasNext()) {
 				sentenceIt.nextSentence();
 				linesSkipped++;
 			}
 			if (!sentenceIt.hasNext()) {
-				// TODO do we need to set this here as well? possibly enough 20 lines below?
+				// TODO this should probably be handled differently
+				ClassifiedTextIterator4RNN.log.warn(
+						"ClassifiedTextIterator4RNN.nextDataSet(int) reached the end of a file while TRYING TO SKIP LINES from previous batches");
 				this.noMoreinAtLeastOneFile = true;
-				throw new Exception(
-						"ClassifiedTextIterator.nextDataSet(int) is trying skip more lines than available in file (next() despite hasNext() == null?)");
 			}
 
+			// b. read lines for current batch
 			List<String> nLines = new ArrayList<String>(numPerClass);
 			int linesRead = 0;
 			while (linesRead < numPerClass && sentenceIt.hasNext()) {
@@ -163,8 +167,14 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			nLinesPerClass.add(nLines);
 			if (!sentenceIt.hasNext() && linesRead < numPerClass) {
 				ClassifiedTextIterator4RNN.log.warn(
-						"ClassifiedTextIterator.nextDataSet(int) was unable to read full batch of lines because less lines are left in file");
+						"ClassifiedTextIterator4RNN.nextDataSet(int) reached the end of a file while TRYING TO READ LINES from current batch");
+				// TODO this should probably be handled differently (what if smaller file comes
+				// after larger one?
 				numPerClass = linesRead;
+				this.noMoreinAtLeastOneFile = true;
+			} else if (!sentenceIt.hasNext()) {
+				ClassifiedTextIterator4RNN.log.info(
+						"ClassifiedTextIterator4RNN.nextDataSet(int) reached the end of a file and was able to read full batch of lines");
 				this.noMoreinAtLeastOneFile = true;
 			}
 			this.cursor += numPerClass;
@@ -180,7 +190,12 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		int currentClassMapKey = 0;
 		for (List<String> linesForOneClass : nLinesPerClass) {
 			allTokensForOneClass = new ArrayList<List<String>>(numPerClass);
-			for (String currentLine : linesForOneClass) {
+
+			// we go until numPerClass because in a last batch we may have had less lines in
+			// a file. If that file was after a larger one, we still want to have
+			// numPerClass lines from all files
+			for (int i = 0; i < numPerClass; i++) {
+				String currentLine = linesForOneClass.get(i);
 				currentTokens = this.tokenizeSentence(currentLine);
 
 				if (currentTokens.isEmpty()) {
