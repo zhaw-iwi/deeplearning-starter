@@ -105,21 +105,21 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		Nd4j.getMemoryManager().setAutoGcWindow(5000);
 
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		DataSetIterator it = new ClassifiedTextIterator4RNN.Builder(new String[] {
-				"classifiedtextdata/lines-comedy_training.csv", "classifiedtextdata/lines-thriller_training.csv" },
-				new String[] { "comedy", "thriller" }).wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200)
-						.build();
 
+		DataSetIterator it;
 		DataSet current;
 		int count = 0;
+
+		it = new ClassifiedTextIterator4RNN.Builder(new String[] { "classifiedtextdata/lines-comedy_training.csv",
+				"classifiedtextdata/lines-thriller_training.csv" }, new String[] { "comedy", "thriller" })
+						.wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200).build();
+
+		count = 0;
 		while (it.hasNext()) {
 			current = it.next();
 			count++;
 			System.out.println("DataSet[" + count + "] " + current.numExamples());
 		}
-
-		current = it.next();
-		System.out.println("DataSet[OnceMore] " + current.numExamples());
 	}
 
 	/**
@@ -191,9 +191,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		for (List<String> linesForOneClass : nLinesPerClass) {
 			allTokensForOneClass = new ArrayList<List<String>>(numPerClass);
 
-			// we go until numPerClass because in a last batch we may have had less lines in
-			// a file. If that file was after a larger one, we still want to have
-			// numPerClass lines from all files
+			// we go until numPerClass because: if we are reading the last batch we may have
+			// less lines in a file than batch size. If that file was after a larger one, we
+			// still want to have the same amount of lines from all files (including the
+			// larger ones) which is numPerClass
 			for (int i = 0; i < numPerClass; i++) {
 				String currentLine = linesForOneClass.get(i);
 				currentTokens = this.tokenizeSentence(currentLine);
@@ -231,7 +232,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		int codeForCurrentClass;
 		int point;
 
-		int currentSequenceLength;
+		int sequenceLength;
 		INDArray currentVectors;
 		int currentIndexForLabel;
 		int currentLastIndex;
@@ -239,10 +240,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 			codeForCurrentClass = 0;
 			for (List<List<String>> tokensForOneClass : allTokensPerClass) {
 				currentTokenList = tokensForOneClass.get(i);
-				currentSequenceLength = Math.min(currentTokenList.size(), maxLength);
+				sequenceLength = Math.min(currentTokenList.size(), maxLength);
 
 				try {
-					currentVectors = this.wordVectors.getWordVectors(currentTokenList.subList(0, currentSequenceLength))
+					currentVectors = this.wordVectors.getWordVectors(currentTokenList.subList(0, sequenceLength))
 							.transpose();
 				} catch (IllegalStateException e) {
 					throw e;
@@ -251,9 +252,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				point = i * this.numberOfClasses + codeForCurrentClass;
 
 				features.put(new INDArrayIndex[] { NDArrayIndex.point(point), NDArrayIndex.all(),
-						NDArrayIndex.interval(0, currentSequenceLength) }, currentVectors);
-				featuresMask.get(new INDArrayIndex[] { NDArrayIndex.point(point),
-						NDArrayIndex.interval(0, currentSequenceLength) }).assign(1);
+						NDArrayIndex.interval(0, sequenceLength) }, currentVectors);
+				featuresMask.get(
+						new INDArrayIndex[] { NDArrayIndex.point(point), NDArrayIndex.interval(0, sequenceLength) })
+						.assign(1);
 
 				currentIndexForLabel = codeForCurrentClass;
 				currentLastIndex = Math.min(currentTokenList.size(), maxLength);
