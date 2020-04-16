@@ -1,14 +1,18 @@
-package ch.zambolid;
+package ch.zhaw.deeplearning4j;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator;
 import org.deeplearning4j.iterator.CnnSentenceDataSetIterator.Format;
 import org.deeplearning4j.iterator.LabeledSentenceProvider;
+import org.deeplearning4j.iterator.provider.CollectionLabeledSentenceProvider;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
+import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator;
+import org.deeplearning4j.text.sentenceiterator.SentenceIterator;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.DefaultTokenizerFactory;
 import org.deeplearning4j.text.tokenization.tokenizerfactory.TokenizerFactory;
 import org.nd4j.linalg.dataset.DataSet;
@@ -39,13 +43,45 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 	 */
 	public ClassifiedTextIterator4CNN(String[] pathsToCSVFilePerClass, String[] labels, Builder builder) {
 
-		LabeledSentenceProvider sentenceProvider = Paths.createSentenceProvider(pathsToCSVFilePerClass, labels);
+		LabeledSentenceProvider sentenceProvider = ClassifiedTextIterator4CNN
+				.createSentenceProvider(pathsToCSVFilePerClass, labels);
 
 		this.it = new CnnSentenceDataSetIterator.Builder(Format.CNN2D).sentenceProvider(sentenceProvider)
-				.wordVectors(builder.wordVectors).tokenizerFactory(builder.tokenizerFactory)
-				.minibatchSize(builder.minibatchSize).maxSentenceLength(builder.maxSentenceLength)
-				.useNormalizedWordVectors(false).build();
+				.wordVectors(builder.wordVectors)
+				.tokenizerFactory(builder.tokenizerFactory)
+				.minibatchSize(builder.minibatchSize)
+				.maxSentenceLength(builder.maxSentenceLength)
+				.useNormalizedWordVectors(false)
+				.build();
 
+	}
+
+	private static LabeledSentenceProvider createSentenceProvider(String[] pathsToCSVFilePerClass, String[] labels) {
+		List<String> texts = new ArrayList<String>();
+		List<String> textsLabels = new ArrayList<String>();
+
+		SentenceIterator[] sentenceIterators = new SentenceIterator[pathsToCSVFilePerClass.length];
+		for (int i = 0; i < pathsToCSVFilePerClass.length; i++) {
+			sentenceIterators[i] = new LineSentenceIterator(new File(pathsToCSVFilePerClass[i]));
+		}
+
+		while (ClassifiedTextIterator4CNN.allSentenceIteratorsHaveNext(sentenceIterators)) {
+			for (int i = 0; i < pathsToCSVFilePerClass.length; i++) {
+				texts.add(sentenceIterators[i].nextSentence());
+				textsLabels.add(labels[i]);
+			}
+		}
+
+		return new CollectionLabeledSentenceProvider(texts, textsLabels);
+	}
+
+	private static boolean allSentenceIteratorsHaveNext(SentenceIterator[] sentenceIterators) {
+		for (SentenceIterator current : sentenceIterators) {
+			if (!current.hasNext()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -63,7 +99,9 @@ public class ClassifiedTextIterator4CNN implements DataSetIterator {
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
 		DataSetIterator it = new ClassifiedTextIterator4CNN.Builder(new String[] {
 				"classifiedtextdata/lines-comedy_training.csv", "classifiedtextdata/lines-thriller_training.csv" },
-				new String[] { "comedy", "thriller" }).wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200)
+				new String[] { "comedy", "thriller" }).wordVectors(wordVectors)
+						.minibatchSize(32)
+						.maxSentenceLength(200)
 						.build();
 
 		DataSet current;

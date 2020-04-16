@@ -1,4 +1,4 @@
-package ch.zambolid;
+package ch.zhaw.deeplearning4j;
 
 import java.io.File;
 import java.io.IOException;

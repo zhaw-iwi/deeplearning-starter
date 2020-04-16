@@ -1,4 +1,4 @@
-package ch.zambolid;
+package ch.zhaw.deeplearning4j;
 
 import java.io.File;
 import java.io.IOException;
@@ -86,7 +86,7 @@ public class Main {
 		model.init();
 
 		log.info("> Training Model ...");
-		model.setListeners(new ScoreIterationListener(10)); // Print score every 10 iterations
+		model.setListeners(new ScoreIterationListener(100)); // Print score every 10 iterations
 		for (int i = 0; i < nEpochs; i++) {
 			model.fit(trainData);
 			// log.info("*** Completed epoch {} ***", i);
