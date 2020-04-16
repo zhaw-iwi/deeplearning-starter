@@ -130,6 +130,9 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		reader.close();
 
 		// 3. TODO here we are, map tokens to word vectors etc.
+		
+		
+		
 		return null;
 	}
 
