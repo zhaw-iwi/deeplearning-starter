@@ -246,6 +246,7 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 					currentVectors = this.wordVectors.getWordVectors(currentTokenList.subList(0, sequenceLength))
 							.transpose();
 				} catch (IllegalStateException e) {
+					// TODO this is for debugging purposes only
 					throw e;
 				}
 

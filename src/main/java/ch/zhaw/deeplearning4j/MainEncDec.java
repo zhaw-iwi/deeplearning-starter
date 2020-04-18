@@ -1,5 +1,9 @@
 package ch.zhaw.deeplearning4j;
 
+import java.io.File;
+
+import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
+import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.nn.conf.BackpropType;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
@@ -27,7 +31,7 @@ public class MainEncDec {
 	public static void main(String[] args) {
 
 		log.info("> Hello EncDec :-)");
-		
+
 		double learningRate = 1e-1;
 		int tbttSize = 25;
 		int embeddingWidth = 300;
@@ -37,56 +41,50 @@ public class MainEncDec {
 
 		log.info("> Preparing Data ...");
 
+		// WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new
+		// File(Paths.WORD_VECTORS_PATH));
+
 		int batchSize = 32;
 
 		log.info("> Building Model ...");
-		
+
 		final NeuralNetConfiguration.Builder builder = new NeuralNetConfiguration.Builder()
-	            .updater(new RmsProp(learningRate))
-	            .weightInit(WeightInit.XAVIER)
-	            .gradientNormalization(GradientNormalization.RenormalizeL2PerLayer);
+				.updater(new RmsProp(learningRate))
+				.weightInit(WeightInit.XAVIER)
+				.gradientNormalization(GradientNormalization.RenormalizeL2PerLayer);
 
-	        final GraphBuilder graphBuilder = builder.graphBuilder()
-	            .backpropType(BackpropType.Standard)
-	            .tBPTTBackwardLength(tbttSize)
-	            .tBPTTForwardLength(tbttSize)
-	            .addInputs("inputLine", "decoderInput")
-	            .setInputTypes(InputType.recurrent(dict.size()), InputType.recurrent(dict.size()))
-	            .addLayer("embeddingEncoder",
-	                new EmbeddingLayer.Builder()
-	                    .nIn(dict.size())
-	                    .nOut(embeddingWidth)
-	                    .build(),
-	                "inputLine")
-	            .addLayer("encoder",
-	                new LSTM.Builder()
-	                    .nIn(embeddingWidth)
-	                    .nOut(hiddenLayerWidth)
-	                    .activation(Activation.TANH)
-	                    .build(),
-	                "embeddingEncoder")
-	            .addVertex("thoughtVector", new LastTimeStepVertex("inputLine"), "encoder")
-	            .addVertex("dup", new DuplicateToTimeSeriesVertex("decoderInput"), "thoughtVector")
-	            .addVertex("merge", new MergeVertex(), "decoderInput", "dup")
-	            .addLayer("decoder",
-	                new LSTM.Builder()
-	                    .nIn(dict.size() + hiddenLayerWidth)
-	                    .nOut(hiddenLayerWidth)
-	                    .activation(Activation.TANH)
-	                    .build(),
-	                "merge")
-	            .addLayer("output",
-	                new RnnOutputLayer.Builder()
-	                    .nIn(hiddenLayerWidth)
-	                    .nOut(dict.size())
-	                    .activation(Activation.SOFTMAX)
-	                    .lossFunction(LossFunctions.LossFunction.MCXENT)
-	                    .build(),
-	                "decoder")
-	            .setOutputs("output");
+		final GraphBuilder graphBuilder = builder.graphBuilder()
+				.backpropType(BackpropType.Standard)
+				.tBPTTBackwardLength(tbttSize)
+				.tBPTTForwardLength(tbttSize)
+				.addInputs("encoderInput", "decoderInput")
+				// TODO .setInputTypes(InputType.recurrent(dict.size()), InputType.recurrent(dict.size()))
+				.addLayer("encoder",
+						new LSTM.Builder().nIn(embeddingWidth)
+								.nOut(hiddenLayerWidth)
+								.activation(Activation.TANH)
+								.build(),
+						"encoderInput")
+				.addVertex("thoughtVector", new LastTimeStepVertex("encoderInput"), "encoder")
+				.addVertex("dup", new DuplicateToTimeSeriesVertex("decoderInput"), "thoughtVector")
+				.addVertex("merge", new MergeVertex(), "decoderInput", "dup")
+				.addLayer("decoder",
+						new LSTM.Builder().nIn(embeddingWidth + hiddenLayerWidth)
+								.nOut(hiddenLayerWidth)
+								.activation(Activation.TANH)
+								.build(),
+						"merge")
+				.addLayer("output",
+						new RnnOutputLayer.Builder().nIn(hiddenLayerWidth)
+								.nOut(embeddingWidth)
+								.activation(Activation.SOFTMAX)
+								.lossFunction(LossFunctions.LossFunction.MCXENT)
+								.build(),
+						"decoder")
+				.setOutputs("output");
 
-	        ComputationGraph model = new ComputationGraph(graphBuilder.build());
-	        model.init();
+		ComputationGraph model = new ComputationGraph(graphBuilder.build());
+		model.init();
 
 		log.info("> Training Model ...");
 

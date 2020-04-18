@@ -58,12 +58,19 @@ public class MainRNN {
 
 		log.info("> Building Model ...");
 
-		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder().seed(seed).updater(new Adam(5e-3)).l2(1e-5)
-				.weightInit(WeightInit.XAVIER).gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
-				.gradientNormalizationThreshold(1.0).list()
+		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder().seed(seed)
+				.updater(new Adam(5e-3))
+				.l2(1e-5)
+				.weightInit(WeightInit.XAVIER)
+				.gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
+				.gradientNormalizationThreshold(1.0)
+				.list()
 				.layer(new LSTM.Builder().nIn(vectorSize).nOut(256).activation(Activation.TANH).build())
 				.layer(new RnnOutputLayer.Builder().activation(Activation.SOFTMAX)
-						.lossFunction(LossFunctions.LossFunction.MCXENT).nIn(256).nOut(numberOfClasses).build())
+						.lossFunction(LossFunctions.LossFunction.MCXENT)
+						.nIn(256)
+						.nOut(numberOfClasses)
+						.build())
 				.build();
 
 		MultiLayerNetwork model = new MultiLayerNetwork(conf);
@@ -87,12 +94,16 @@ public class MainRNN {
 		if (isTraining) {
 			return new ClassifiedTextIterator4RNN.Builder(new String[] { "classifiedtextdata/lines-comedy_training.csv",
 					"classifiedtextdata/lines-thriller_training.csv" }, new String[] { "comedy", "thriller" })
-							.wordVectors(wordVectors).minibatchSize(minibatchSize).maxSentenceLength(maxSentenceLength)
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
 							.build();
 		} else {
 			return new ClassifiedTextIterator4RNN.Builder(new String[] { "classifiedtextdata/lines-comedy_testing.csv",
 					"classifiedtextdata/lines-thriller_testing.csv" }, new String[] { "comedy", "thriller" })
-							.wordVectors(wordVectors).minibatchSize(minibatchSize).maxSentenceLength(maxSentenceLength)
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
 							.build();
 		}
 	}
