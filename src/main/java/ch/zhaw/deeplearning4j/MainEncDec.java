@@ -24,6 +24,14 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Zurich University of Applied Sciences (ZHAW), Institute for Business
+ * Information Systems (IWI), Center for Information Systems and Technologies
+ * (CIS)
+ * 
+ * @author Alexandre de Spindler (desa@zhaw.ch)
+ * 
+ */
 public class MainEncDec {
 
 	private static final Logger log = LoggerFactory.getLogger(MainEncDec.class);
@@ -58,7 +66,8 @@ public class MainEncDec {
 				.tBPTTBackwardLength(tbttSize)
 				.tBPTTForwardLength(tbttSize)
 				.addInputs("encoderInput", "decoderInput")
-				// TODO .setInputTypes(InputType.recurrent(dict.size()), InputType.recurrent(dict.size()))
+				// TODO .setInputTypes(InputType.recurrent(dict.size()),
+				// InputType.recurrent(dict.size()))
 				.addLayer("encoder",
 						new LSTM.Builder().nIn(embeddingWidth)
 								.nOut(hiddenLayerWidth)

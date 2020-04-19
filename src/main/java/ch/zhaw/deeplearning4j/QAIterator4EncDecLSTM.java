@@ -24,9 +24,22 @@ import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Zurich University of Applied Sciences (ZHAW), Institute for Business
+ * Information Systems (IWI), Center for Information Systems and Technologies
+ * (CIS)
+ * 
+ * @author Alexandre de Spindler (desa@zhaw.ch)
+ * 
+ */
 public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 
 	private static final Logger log = LoggerFactory.getLogger(QAIterator4EncDecLSTM.class);
+
+	// private static final String UNKNOWN_WORD_SENTINEL = "UNKNOWN_WORD";
+	private static final String EMPTY_LINE_REPLACEMENT = "well";
+	private static final String LINE_START = "say";
+	private static final String LINE_END = "right";
 
 	private final String pathToCSVFile;
 	private final WordVectors wordVectors;
@@ -38,6 +51,8 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 
 	private int cursor;
 	private boolean done;
+	private List<String> knownWords;
+	private List<String> unknownWords;
 
 	public QAIterator4EncDecLSTM(String pathToCSVFile, Builder builder) {
 
@@ -73,7 +88,7 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		while (it.hasNext()) {
 			current = it.next();
 			count++;
-			System.out.println("MultiDataSet[" + count + "] "); // + current.getMemoryFootprint()
+			System.out.println("MultiDataSet[" + count + "] " + current.getMemoryFootprint());
 		}
 	}
 
@@ -110,9 +125,15 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 			currentATokens = this.tokenizeSentence(line.get(1).toString());
 
 			// TODO check for empty lines and handle these!!!
+			if (currentQTokens.isEmpty()) {
+				currentQTokens.add(EMPTY_LINE_REPLACEMENT);
+			}
+			if (currentATokens.isEmpty()) {
+				currentATokens.add(EMPTY_LINE_REPLACEMENT);
+			}
 
 			// TODO remove this
-			System.out.println(currentQTokens + "\n\t" + currentATokens);
+			// System.out.println(currentQTokens + "\n\t" + currentATokens);
 			maxLength = Math.max(maxLength, Math.max(currentQTokens.size(), currentATokens.size()));
 
 			qTokens.add(numberOfLinesRead, currentQTokens);
@@ -148,9 +169,9 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		// 3. Map Tokens to Word Vectors, the put Vectors for input, prediction and
 		// decode into NDArrays
 
-		INDArray input = Nd4j.zeros(numberOfExamples, this.vectorSize, maxLength);
-		INDArray prediction = Nd4j.zeros(numberOfExamples, this.vectorSize, maxLength);
-		INDArray decode = Nd4j.zeros(numberOfExamples, this.vectorSize, maxLength);
+		INDArray input = Nd4j.create(new int[] { numberOfExamples, this.vectorSize, maxLength }, 'f');
+		INDArray prediction = Nd4j.create(new int[] { numberOfExamples, this.vectorSize, maxLength }, 'f');
+		INDArray decode = Nd4j.create(new int[] { numberOfExamples, this.vectorSize, maxLength }, 'f');
 		INDArray inputMask = Nd4j.zeros(numberOfExamples, maxLength);
 		// this mask is also used for the decoder input, the length is the same
 		INDArray predictionMask = Nd4j.zeros(numberOfExamples, maxLength);
@@ -165,13 +186,15 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 			currentQTokenList = qTokens.get(i);
 			sequenceLengthQ = Math.min(maxLength, currentQTokenList.size());
 			currentATokenList = aTokens.get(i);
-			// TODO add "eos" at the end of A
+			// put LINE_END at the end of A
+			currentATokenList.add(LINE_END);
 			sequenceLengthA = Math.min(maxLength, currentATokenList.size());
 
 			// Decoder is A offset by 1, with "go" in the beginning and NOT the "eos" at the
 			// end of prediction
 			currentDecoderTokenList = new ArrayList<String>(sequenceLengthA);
-			// TODO currentDecoderTokenList.add(0, "go");
+			// put LINE_START at the beginning of decoder
+			currentDecoderTokenList.add(0, LINE_START);
 			for (int j = 0; j < sequenceLengthA; j++) {
 				if (j < sequenceLengthA - 1) {
 					currentDecoderTokenList.add(currentATokenList.get(j));
@@ -180,9 +203,11 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 
 			// word vectors for Q and A ad Decoder
 			try {
-				currentQVectors = this.wordVectors.getWordVectors(currentQTokenList.subList(0, sequenceLengthQ));
-				currentAVectors = this.wordVectors.getWordVectors(currentATokenList.subList(0, sequenceLengthA));
-				currentDecodeVectors = this.wordVectors.getWordVectors(currentDecoderTokenList);
+				currentQVectors = this.wordVectors.getWordVectors(currentQTokenList.subList(0, sequenceLengthQ))
+						.transpose();
+				currentAVectors = this.wordVectors.getWordVectors(currentATokenList.subList(0, sequenceLengthA))
+						.transpose();
+				currentDecodeVectors = this.wordVectors.getWordVectors(currentDecoderTokenList).transpose();
 			} catch (IllegalStateException e) {
 				// TODO this is for debugging purposes only
 				// TODO HANDLE empty list in tokenization: replace unknown words with something
@@ -190,21 +215,31 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 				throw e;
 			}
 
-			// Q goes into input
-			input.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
-					NDArrayIndex.interval(0, sequenceLengthQ) }, currentQVectors);
-			inputMask.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.interval(0, sequenceLengthQ) },
-					Nd4j.ones(sequenceLengthQ));
+			try {
 
-			// A goes into prediction
-			prediction.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
-					NDArrayIndex.interval(0, sequenceLengthA) }, currentAVectors);
-			predictionMask.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.interval(0, sequenceLengthA) },
-					Nd4j.ones(sequenceLengthA));
+				// Q goes into input
+				input.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
+						NDArrayIndex.interval(0, sequenceLengthQ) }, currentQVectors);
+				inputMask.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.interval(0, sequenceLengthQ) },
+						Nd4j.ones(sequenceLengthQ));
 
-			// Aaaaand the decoder
-			decode.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
-					NDArrayIndex.interval(0, sequenceLengthA) }, currentDecodeVectors);
+				// A goes into prediction
+				prediction.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
+						NDArrayIndex.interval(0, sequenceLengthA) }, currentAVectors);
+				predictionMask.put(
+						new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.interval(0, sequenceLengthA) },
+						Nd4j.ones(sequenceLengthA));
+
+				// Aaaaand the decoder
+				decode.put(new INDArrayIndex[] { NDArrayIndex.point(i), NDArrayIndex.all(),
+						NDArrayIndex.interval(0, sequenceLengthA) }, currentDecodeVectors);
+
+			} catch (IllegalStateException e) {
+				// TODO this is for debugging purposes only
+				System.out.println(">>> " + e.getMessage() +
+						"\n>>> " + currentQTokenList + "\n>>> " + currentATokenList + "\n>>> " + currentDecoderTokenList);
+				throw e;
+			}
 		}
 
 		return new org.nd4j.linalg.dataset.MultiDataSet(new INDArray[] { input, decode }, new INDArray[] { prediction },
@@ -218,10 +253,13 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		while (t.hasMoreTokens()) {
 			String token = t.nextToken();
 			if (!this.wordVectors.outOfVocabularySupported() && !this.wordVectors.hasWord(token)) {
-				continue;
-				// TODO replace with something known!!!
+				// TODO how to handle unknown words?
+				// result.add(UNKNOWN_WORD_SENTINEL);
+				this.unknownWords.add(token);
+			} else {
+				this.knownWords.add(token);
+				result.add(token);
 			}
-			result.add(token);
 		}
 		return result;
 	}
@@ -273,6 +311,8 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	public void reset() {
 		this.cursor = 0;
 		this.done = false;
+		this.knownWords = new ArrayList<String>();
+		this.unknownWords = new ArrayList<String>();
 	}
 
 	public static class Builder {

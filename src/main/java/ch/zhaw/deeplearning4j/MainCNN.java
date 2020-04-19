@@ -19,6 +19,7 @@ import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.api.InvocationType;
 import org.deeplearning4j.optimize.listeners.EvaluativeListener;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.nd4j.evaluation.classification.Evaluation;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.learning.config.Adam;
@@ -115,8 +116,9 @@ public class MainCNN {
 				new EvaluativeListener(testDataIterator, 1, InvocationType.EPOCH_END));
 		model.fit(trainDataIterator, nEpochs);
 
-		// log.info("> Applying Model ...");
-		// TODO if needed
+		log.info("> Testing Model ...");
+		Evaluation eval = model.evaluate(testDataIterator);
+		log.info(eval.stats());
 
 		log.info("> Good Bye ;-(");
 

@@ -42,6 +42,9 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 	private static final Logger log = LoggerFactory.getLogger(ClassifiedTextIterator4RNN.class);
 
+	// private static final String UNKNOWN_WORD_SENTINEL = "UNKNOWN_WORD";
+	private static final String EMPTY_LINE_REPLACEMENT = "well";
+
 	private final String[] pathsToCSVFilePerClass;
 	private final String[] labels;
 	private final int numberOfClasses;
@@ -112,7 +115,10 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 
 		it = new ClassifiedTextIterator4RNN.Builder(new String[] { "classifiedtextdata/lines-comedy_training.csv",
 				"classifiedtextdata/lines-thriller_training.csv" }, new String[] { "comedy", "thriller" })
-						.wordVectors(wordVectors).minibatchSize(32).maxSentenceLength(200).build();
+						.wordVectors(wordVectors)
+						.minibatchSize(32)
+						.maxSentenceLength(200)
+						.build();
 
 		count = 0;
 		while (it.hasNext()) {
@@ -199,13 +205,11 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 				String currentLine = linesForOneClass.get(i);
 				currentTokens = this.tokenizeSentence(currentLine);
 
+				// TODO check for empty lines and handle these!!!
 				if (currentTokens.isEmpty()) {
-					// TODO handle this!
-					ClassifiedTextIterator4RNN.log.warn("Line \"" + currentLine
-							+ "\" is replaced with words \"this be the\" because it was left empty after tokenization/filtering");
-					currentTokens.add("this");
-					currentTokens.add("be");
-					currentTokens.add("the");
+					ClassifiedTextIterator4RNN.log.warn("Line \"" + currentLine + "\" is replaced with words \""
+							+ EMPTY_LINE_REPLACEMENT + "\" because it was left empty after tokenization/filtering");
+					currentTokens.add(EMPTY_LINE_REPLACEMENT);
 					this.nOfReplacementsPerClass.put(currentClassMapKey,
 							this.nOfReplacementsPerClass.get(currentClassMapKey) + 1);
 				}
@@ -277,9 +281,11 @@ public class ClassifiedTextIterator4RNN implements DataSetIterator {
 		while (t.hasMoreTokens()) {
 			String token = t.nextToken();
 			if (!this.wordVectors.outOfVocabularySupported() && !this.wordVectors.hasWord(token)) {
-				continue;
+				// TODO how to handle unknown words?
+				// result.add(UNKNOWN_WORD_SENTINEL);
+			} else {
+				result.add(token);
 			}
-			result.add(token);
 		}
 		return result;
 	}
