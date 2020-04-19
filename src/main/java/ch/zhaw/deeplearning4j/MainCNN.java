@@ -22,6 +22,7 @@ import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.nd4j.evaluation.classification.Evaluation;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
+import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.learning.config.Adam;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.slf4j.Logger;
@@ -51,16 +52,10 @@ public class MainCNN {
 
 		int nEpochs = 1; // Number of training epochs
 
-		// brauchts das?
-		// Nd4j.getMemoryManager().setAutoGcWindow(5000);
-		// //https://deeplearning4j.org/workspaces
+		Nd4j.getMemoryManager().setAutoGcWindow(10000); // https://deeplearning4j.org/workspaces
 
 		log.info("> Preparing Data ...");
-
-		// brauchts das?
-		// Nd4j.getMemoryManager().setAutoGcWindow(10000);
-		// //https://deeplearning4j.org/workspaces
-
+		
 		int batchSize = 32;
 
 		// Load word vectors and get the DataSetIterators for training and testing
@@ -71,27 +66,37 @@ public class MainCNN {
 		log.info("> Building Model ...");
 
 		ComputationGraphConfiguration config = new NeuralNetConfiguration.Builder().weightInit(WeightInit.RELU)
-				.activation(Activation.LEAKYRELU).updater(new Adam(0.01)).convolutionMode(ConvolutionMode.Same) // This
-																												// is
-																												// important
-																												// so we
-																												// can
-																												// 'stack'
-																												// the
-																												// results
-																												// later
-				.l2(0.0001).graphBuilder().addInputs("input")
+				.activation(Activation.LEAKYRELU)
+				.updater(new Adam(0.01))
+				.convolutionMode(ConvolutionMode.Same) // This
+														// is
+														// important
+														// so we
+														// can
+														// 'stack'
+														// the
+														// results
+														// later
+				.l2(0.0001)
+				.graphBuilder()
+				.addInputs("input")
 				.addLayer("cnn3",
-						new ConvolutionLayer.Builder().kernelSize(3, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(3, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				.addLayer("cnn4",
-						new ConvolutionLayer.Builder().kernelSize(4, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(4, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				.addLayer("cnn5",
-						new ConvolutionLayer.Builder().kernelSize(5, vectorSize).stride(1, vectorSize)
-								.nOut(cnnLayerFeatureMaps).build(),
+						new ConvolutionLayer.Builder().kernelSize(5, vectorSize)
+								.stride(1, vectorSize)
+								.nOut(cnnLayerFeatureMaps)
+								.build(),
 						"input")
 				// MergeVertex performs depth concatenation on activations:
 				// 3x[minibatch,100,length,300] to 1x[minibatch,300,length,300]
@@ -102,11 +107,14 @@ public class MainCNN {
 						new GlobalPoolingLayer.Builder().poolingType(globalPoolingType).dropOut(0.5).build(), "merge")
 				.addLayer("out",
 						new OutputLayer.Builder().lossFunction(LossFunctions.LossFunction.MCXENT)
-								.activation(Activation.SOFTMAX).nOut(numberOfClasses).build(),
+								.activation(Activation.SOFTMAX)
+								.nOut(numberOfClasses)
+								.build(),
 						"globalPool")
 				.setOutputs("out")
 				// Input has shape [minibatch, channels=1, length=1 to 256, 300]
-				.setInputTypes(InputType.convolutional(truncateTextToLength, vectorSize, 1)).build();
+				.setInputTypes(InputType.convolutional(truncateTextToLength, vectorSize, 1))
+				.build();
 
 		ComputationGraph model = new ComputationGraph(config);
 		model.init();
@@ -130,12 +138,16 @@ public class MainCNN {
 		if (isTraining) {
 			return new ClassifiedTextIterator4CNN.Builder(new String[] { "classifiedtextdata/lines-comedy_training.csv",
 					"classifiedtextdata/lines-thriller_training.csv" }, new String[] { "comedy", "thriller" })
-							.wordVectors(wordVectors).minibatchSize(minibatchSize).maxSentenceLength(maxSentenceLength)
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
 							.build();
 		} else {
 			return new ClassifiedTextIterator4CNN.Builder(new String[] { "classifiedtextdata/lines-comedy_testing.csv",
 					"classifiedtextdata/lines-thriller_testing.csv" }, new String[] { "comedy", "thriller" })
-							.wordVectors(wordVectors).minibatchSize(minibatchSize).maxSentenceLength(maxSentenceLength)
+							.wordVectors(wordVectors)
+							.minibatchSize(minibatchSize)
+							.maxSentenceLength(maxSentenceLength)
 							.build();
 		}
 	}
