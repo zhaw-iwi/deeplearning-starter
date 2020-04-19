@@ -66,7 +66,7 @@ public class ChatbotEncDec {
 	private ComputationGraph model;
 
 	public static void main(String[] args) throws IOException {
-		ChatbotEncDec bot = new ChatbotEncDec(true);
+		ChatbotEncDec bot = new ChatbotEncDec(false);
 		System.out.println(bot.getAforQ("how are you feeling?", 3));
 	}
 
@@ -86,6 +86,11 @@ public class ChatbotEncDec {
 		// starting either creating and training or using the model
 
 		File networkFile = new File(toTempPath(MODEL_FILENAME));
+		if (networkFile.exists()) {
+			log.info("> Network file " + networkFile.getAbsolutePath() + " exists");
+		} else {
+			log.info("> Network file " + networkFile.getAbsolutePath() + " does NOT exist");
+		}
 
 		if (createNew) {
 			this.model = this.buildModel();
