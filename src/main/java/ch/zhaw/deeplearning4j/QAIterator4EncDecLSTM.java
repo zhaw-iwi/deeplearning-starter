@@ -2,6 +2,7 @@ package ch.zhaw.deeplearning4j;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -37,9 +38,9 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	private static final Logger log = LoggerFactory.getLogger(QAIterator4EncDecLSTM.class);
 
 	// private static final String UNKNOWN_WORD_SENTINEL = "UNKNOWN_WORD";
-	private static final String EMPTY_LINE_REPLACEMENT = "well";
-	private static final String LINE_START = "say";
-	private static final String LINE_END = "right";
+	public static final String EMPTY_LINE_REPLACEMENT = "well";
+	public static final String LINE_START = "say";
+	public static final String LINE_END = "right";
 
 	private final String pathToCSVFile;
 	private final WordVectors wordVectors;
@@ -176,7 +177,6 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		// this mask is also used for the decoder input, the length is the same
 		INDArray predictionMask = Nd4j.zeros(numberOfExamples, maxLength);
 
-		// TODO here we are
 		List<String> currentQTokenList, currentATokenList, currentDecoderTokenList;
 		int sequenceLengthQ, sequenceLengthA;
 		INDArray currentQVectors, currentAVectors, currentDecodeVectors;
@@ -202,9 +202,12 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 			}
 
 			// word vectors for Q and A ad Decoder
+
+			// Q is reversed (see paper)
+			List<String> reversedQTokenList = currentQTokenList.subList(0, sequenceLengthQ);
+			Collections.reverse(reversedQTokenList);
 			try {
-				currentQVectors = this.wordVectors.getWordVectors(currentQTokenList.subList(0, sequenceLengthQ))
-						.transpose();
+				currentQVectors = this.wordVectors.getWordVectors(reversedQTokenList).transpose();
 				currentAVectors = this.wordVectors.getWordVectors(currentATokenList.subList(0, sequenceLengthA))
 						.transpose();
 				currentDecodeVectors = this.wordVectors.getWordVectors(currentDecoderTokenList).transpose();
@@ -236,8 +239,8 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 
 			} catch (IllegalStateException e) {
 				// TODO this is for debugging purposes only
-				System.out.println(">>> " + e.getMessage() +
-						"\n>>> " + currentQTokenList + "\n>>> " + currentATokenList + "\n>>> " + currentDecoderTokenList);
+				System.out.println(">>> " + e.getMessage() + "\n>>> " + currentQTokenList + "\n>>> " + currentATokenList
+						+ "\n>>> " + currentDecoderTokenList);
 				throw e;
 			}
 		}

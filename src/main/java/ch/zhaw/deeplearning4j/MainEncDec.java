@@ -1,23 +1,25 @@
 package ch.zhaw.deeplearning4j;
 
 import java.io.File;
+import java.io.IOException;
 
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.nn.conf.BackpropType;
+import org.deeplearning4j.nn.conf.ComputationGraphConfiguration.GraphBuilder;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
-import org.deeplearning4j.nn.conf.ComputationGraphConfiguration.GraphBuilder;
 import org.deeplearning4j.nn.conf.graph.MergeVertex;
 import org.deeplearning4j.nn.conf.graph.rnn.DuplicateToTimeSeriesVertex;
 import org.deeplearning4j.nn.conf.graph.rnn.LastTimeStepVertex;
-import org.deeplearning4j.nn.conf.inputs.InputType;
-import org.deeplearning4j.nn.conf.layers.EmbeddingLayer;
 import org.deeplearning4j.nn.conf.layers.LSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.graph.ComputationGraph;
 import org.deeplearning4j.nn.weights.WeightInit;
+import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
+import org.nd4j.linalg.dataset.api.iterator.MultiDataSetIterator;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.learning.config.RmsProp;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
@@ -36,23 +38,25 @@ public class MainEncDec {
 
 	private static final Logger log = LoggerFactory.getLogger(MainEncDec.class);
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException, InterruptedException {
 
 		log.info("> Hello EncDec :-)");
 
+		int truncateTextToLength = 256; // Truncate reviews with length (# words) greater than this
 		double learningRate = 1e-1;
 		int tbttSize = 25;
 		int embeddingWidth = 300;
 		int hiddenLayerWidth = 512;
+		int nEpochs = 1; // Number of training epochs
 
 		Nd4j.getMemoryManager().setAutoGcWindow(2000);
 
 		log.info("> Preparing Data ...");
 
-		// WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new
-		// File(Paths.WORD_VECTORS_PATH));
-
 		int batchSize = 32;
+
+		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
+		MultiDataSetIterator dataIterator = getDataSetIterator(wordVectors, batchSize, truncateTextToLength);
 
 		log.info("> Building Model ...");
 
@@ -96,10 +100,23 @@ public class MainEncDec {
 		model.init();
 
 		log.info("> Training Model ...");
+		model.addListeners(new ScoreIterationListener(100));
+		model.fit(dataIterator, nEpochs);
 
-		log.info("> Testing Model ...");
+		log.info("> Saving Model ...");
+		ModelSerializer.writeModel(model, new File("mainencdec.zip"), true);
 
 		log.info("> Good Bye ;-(");
+	}
+
+	private static MultiDataSetIterator getDataSetIterator(WordVectors wordVectors, int minibatchSize,
+			int maxSentenceLength) throws IOException, InterruptedException {
+
+		return new QAIterator4EncDecLSTM.Builder("classifieddialoguepairs/dialoguepairs-comedy.csv")
+				.wordVectors(wordVectors)
+				.minibatchSize(minibatchSize)
+				.maxSentenceLength(maxSentenceLength)
+				.build();
 	}
 
 }
