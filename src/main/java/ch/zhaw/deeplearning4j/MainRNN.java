@@ -77,7 +77,7 @@ public class MainRNN {
 		MultiLayerNetwork model = new MultiLayerNetwork(conf);
 		model.init();
 
-		log.info("> Training ...");
+		log.info("> Training Model ...");
 		model.setListeners(new ScoreIterationListener(100),
 				new EvaluativeListener(testData, 1, InvocationType.EPOCH_END));
 		model.fit(trainData, nEpochs);

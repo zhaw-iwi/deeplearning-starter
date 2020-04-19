@@ -55,7 +55,7 @@ public class MainCNN {
 		Nd4j.getMemoryManager().setAutoGcWindow(10000); // https://deeplearning4j.org/workspaces
 
 		log.info("> Preparing Data ...");
-		
+
 		int batchSize = 32;
 
 		// Load word vectors and get the DataSetIterators for training and testing
@@ -68,15 +68,7 @@ public class MainCNN {
 		ComputationGraphConfiguration config = new NeuralNetConfiguration.Builder().weightInit(WeightInit.RELU)
 				.activation(Activation.LEAKYRELU)
 				.updater(new Adam(0.01))
-				.convolutionMode(ConvolutionMode.Same) // This
-														// is
-														// important
-														// so we
-														// can
-														// 'stack'
-														// the
-														// results
-														// later
+				.convolutionMode(ConvolutionMode.Same) // This is important so we can 'stack' the results later
 				.l2(0.0001)
 				.graphBuilder()
 				.addInputs("input")
@@ -119,7 +111,7 @@ public class MainCNN {
 		ComputationGraph model = new ComputationGraph(config);
 		model.init();
 
-		log.info("> Training & Testing Model ...");
+		log.info("> Training Model ...");
 		model.setListeners(new ScoreIterationListener(100),
 				new EvaluativeListener(testDataIterator, 1, InvocationType.EPOCH_END));
 		model.fit(trainDataIterator, nEpochs);
