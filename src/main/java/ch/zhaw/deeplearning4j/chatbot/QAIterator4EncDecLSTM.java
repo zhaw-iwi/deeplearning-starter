@@ -1,4 +1,4 @@
-package ch.zhaw.deeplearning4j;
+package ch.zhaw.deeplearning4j.chatbot;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -25,6 +25,8 @@ import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.zhaw.deeplearning4j.Paths;
+
 /**
  * Zurich University of Applied Sciences (ZHAW), Institute for Business
  * Information Systems (IWI), Center for Information Systems and Technologies
@@ -42,7 +44,7 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	public static final String LINE_START = "say";
 	public static final String LINE_END = "right";
 
-	private final String pathToCSVFile;
+	private final File trainingDataFile;
 	private final WordVectors wordVectors;
 	private final int vectorSize;
 	private final TokenizerFactory tokenizerFactory;
@@ -55,13 +57,12 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	private List<String> knownWords;
 	private List<String> unknownWords;
 
-	public QAIterator4EncDecLSTM(String pathToCSVFile, Builder builder) {
+	public QAIterator4EncDecLSTM(File trainingDataFile, Builder builder) {
 
-		this.pathToCSVFile = builder.pathToCSVFile;
+		this.trainingDataFile = trainingDataFile;
 		this.wordVectors = builder.wordVectors;
-		this.vectorSize = wordVectors.getWordVector(wordVectors.vocab().wordAtIndex(0)).length;
+		this.vectorSize = builder.wordVectors.getWordVector(builder.wordVectors.vocab().wordAtIndex(0)).length;
 		this.tokenizerFactory = builder.tokenizerFactory;
-		this.tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor());
 
 		this.minibatchSize = builder.minibatchSize;
 		this.maxSentenceLength = builder.maxSentenceLength;
@@ -79,11 +80,8 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 		MultiDataSet current;
 		int count = 0;
 
-		it = new QAIterator4EncDecLSTM.Builder("classifieddialoguepairs/dialoguepairs-comedy.csv")
-				.wordVectors(wordVectors)
-				.minibatchSize(32)
-				.maxSentenceLength(200)
-				.build();
+		File trainingDataFile = new File(ChatbotEncDecTrainer.TRAINING_DATA_FILENAME);
+		it = new QAIterator4EncDecLSTM.Builder(trainingDataFile).wordVectors(wordVectors).build();
 
 		count = 0;
 		while (it.hasNext()) {
@@ -96,7 +94,7 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	private MultiDataSet nextDataSet(int numberOfExamples) throws Exception {
 
 		CSVRecordReader reader = new CSVRecordReader();
-		reader.initialize(new FileSplit(new File(pathToCSVFile)));
+		reader.initialize(new FileSplit(this.trainingDataFile));
 
 		// 1. Skip lines from previous batches
 		int numberOfLinesReadPreviousBatches = 0;
@@ -321,14 +319,16 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 	public static class Builder {
 
 		private WordVectors wordVectors;
-		private TokenizerFactory tokenizerFactory = new DefaultTokenizerFactory();
-		private int maxSentenceLength = -1;
+		private TokenizerFactory tokenizerFactory;
+		private int maxSentenceLength = 256;
 		private int minibatchSize = 32;
 
-		private String pathToCSVFile;
+		private File trainingDataFile;
 
-		public Builder(String pathToCSVFile) {
-			this.pathToCSVFile = pathToCSVFile;
+		public Builder(File trainingDataFile) {
+			this.trainingDataFile = trainingDataFile;
+			this.tokenizerFactory = new DefaultTokenizerFactory();
+			this.tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor());
 		}
 
 		/**
@@ -367,11 +367,10 @@ public class QAIterator4EncDecLSTM implements MultiDataSetIterator {
 
 		public QAIterator4EncDecLSTM build() {
 			if (wordVectors == null) {
-				throw new IllegalStateException(
-						"Cannot build ClassifiedTextIterator4Rnn without a WordVectors instance");
+				throw new IllegalStateException("Cannot build QAIterator4EncDecLSTM without a WordVectors instance");
 			}
 
-			return new QAIterator4EncDecLSTM(this.pathToCSVFile, this);
+			return new QAIterator4EncDecLSTM(this.trainingDataFile, this);
 		}
 
 	}

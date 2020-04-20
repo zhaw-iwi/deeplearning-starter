@@ -26,6 +26,9 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.zhaw.deeplearning4j.chatbot.ChatbotEncDecTrainer;
+import ch.zhaw.deeplearning4j.chatbot.QAIterator4EncDecLSTM;
+
 /**
  * Zurich University of Applied Sciences (ZHAW), Institute for Business
  * Information Systems (IWI), Center for Information Systems and Technologies
@@ -53,10 +56,11 @@ public class MainEncDec {
 
 		log.info("> Preparing Data ...");
 
-		int batchSize = 32;
-
+		log.info("Loading Google News 300 Vectors ...");
 		WordVectors wordVectors = WordVectorSerializer.loadStaticModel(new File(Paths.WORD_VECTORS_PATH));
-		MultiDataSetIterator dataIterator = getDataSetIterator(wordVectors, batchSize, truncateTextToLength);
+		log.info("Loading Google News 300 Vectors DONE");
+
+		MultiDataSetIterator dataIterator = getDataSetIterator(wordVectors);
 
 		log.info("> Building Model ...");
 
@@ -109,14 +113,11 @@ public class MainEncDec {
 		log.info("> Good Bye ;-(");
 	}
 
-	private static MultiDataSetIterator getDataSetIterator(WordVectors wordVectors, int minibatchSize,
-			int maxSentenceLength) throws IOException, InterruptedException {
+	private static MultiDataSetIterator getDataSetIterator(WordVectors wordVectors)
+			throws IOException, InterruptedException {
 
-		return new QAIterator4EncDecLSTM.Builder("classifieddialoguepairs/dialoguepairs-comedy.csv")
-				.wordVectors(wordVectors)
-				.minibatchSize(minibatchSize)
-				.maxSentenceLength(maxSentenceLength)
-				.build();
+		File trainingDataFile = new File(ChatbotEncDecTrainer.TRAINING_DATA_FILENAME);
+		return new QAIterator4EncDecLSTM.Builder(trainingDataFile).wordVectors(wordVectors).build();
 	}
 
 }
