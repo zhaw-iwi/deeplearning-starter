@@ -47,7 +47,7 @@ public class ChatbotEncDec {
 
 	public static void main(String[] args) throws IOException {
 		File modelFile = new File(ChatbotEncDecTrainer.MODEL_FILENAME);
-
+		
 		File wordVectorsFile = new File(ChatbotEncDecWordVectors.WORDVECTORS_FILENAME);
 		WordVectors wordVectors = ChatbotEncDecWordVectors.load(wordVectorsFile);
 
