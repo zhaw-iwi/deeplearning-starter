@@ -63,11 +63,13 @@ import org.slf4j.LoggerFactory;
  * @author dariuszzbyrad
  */
 public class MnistClassifier {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MnistClassifier.class);
-    private static final String BASE_PATH = System.getProperty("java.io.tmpdir") + "/mnist";
-    private static final String DATA_URL = "http://github.com/myleott/mnist_png/raw/master/mnist_png.tar.gz";
+    private static final Logger log = LoggerFactory.getLogger(MnistClassifier.class);
+    private static final String BASE_PATH = "mnist";
 
     public static void main(String[] args) throws Exception {
+    	
+    	log.info("> Hello CNN :-)");
+    	
         int height = 28;    // height of the picture in px
         int width = 28;     // width of the picture in px
         int channels = 1;   // single channel for grayscale images
@@ -78,17 +80,8 @@ public class MnistClassifier {
         int seed = 1234;    // number used to initialize a pseudorandom number generator.
         Random randNumGen = new Random(seed);
 
-        LOGGER.info("Data load...");
-//        if (!new File(BASE_PATH + "/mnist_png").exists()) {
-//
-//            LOGGER.debug("Data downloaded from {}", DATA_URL);
-//            String localFilePath = BASE_PATH + "/mnist_png.tar.gz";
-//            if (DataUtilities.downloadFile(DATA_URL, localFilePath)) {
-//                DataUtilities.extractTarGz(localFilePath, BASE_PATH);
-//            }
-//        }
-
-        LOGGER.info("Data vectorization...");
+        log.info("> Preparing Data ...");
+        
         // vectorization of train data
         File trainData = new File(BASE_PATH + "/mnist_png/training");
         FileSplit trainSplit = new FileSplit(trainData, NativeImageLoader.ALLOWED_FORMATS, randNumGen);
@@ -110,7 +103,8 @@ public class MnistClassifier {
         DataSetIterator testIter = new RecordReaderDataSetIterator(testRR, batchSize, 1, outputNum);
         testIter.setPreProcessor(imageScaler); // same normalization for better results
 
-        LOGGER.info("Network configuration and training...");
+        log.info("> Building Model ...");
+        
         // reduce the learning rate as the number of training epochs increases
         // iteration #, learning rate
         Map<Integer, Double> learningRateSchedule = new HashMap<>();
@@ -157,22 +151,23 @@ public class MnistClassifier {
 
         MultiLayerNetwork net = new MultiLayerNetwork(conf);
         net.init();
+        
+        log.info("> Training & Testing Model ...");
+        
         net.setListeners(new ScoreIterationListener(10));
-        LOGGER.info("Total num of params: {}", net.numParams());
+        log.info("Total num of params: {}", net.numParams());
 
         // evaluation while training (the score should go down)
         for (int i = 0; i < nEpochs; i++) {
             net.fit(trainIter);
-            LOGGER.info("Completed epoch {}", i);
+            log.info("Completed epoch {}", i);
             Evaluation eval = net.evaluate(testIter);
-            LOGGER.info(eval.stats());
+            log.info(eval.stats());
 
             trainIter.reset();
             testIter.reset();
         }
 
-        File ministModelPath = new File(BASE_PATH + "/minist-model.zip");
-        ModelSerializer.writeModel(net, ministModelPath, true);
-        LOGGER.info("The MINIST model has been saved in {}", ministModelPath.getPath());
+        log.info("> Good Bye ;-(");
     }
 }
