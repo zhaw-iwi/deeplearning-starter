@@ -6,9 +6,9 @@
 
 	<!-- Group-ID, artifact ID and version of the project. You can modify these 
 		as you want -->
-	<groupId>ch.zhaw.deeplearning4j</groupId>
-	<artifactId>deeplearning4j-starter</artifactId>
-	<name>Deeplearning4j Starter</name>
+	<groupId>ch.zhaw.iwi.deeplearning</groupId>
+	<artifactId>deeplearning-starter</artifactId>
+	<name>Deeplearning Examples and Applications</name>
 	<version>1.0.0</version>
 
 	<!-- Properties Section. Change DL4J and ND4J versions here, if required -->

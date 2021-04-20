@@ -1,4 +1,4 @@
-package ch.zhaw.deeplearning4j.chatbot;
+package ch.zhaw.iwi.deeplearning.chatbot;
 
 import java.io.File;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package ch.zhaw.deeplearning4j;
+package ch.zhaw.iwi.deeplearning;
 
 public class Paths {
 

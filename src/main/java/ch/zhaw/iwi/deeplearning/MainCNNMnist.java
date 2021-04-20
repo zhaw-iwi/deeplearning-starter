@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: Apache-2.0
  ******************************************************************************/
 
-package ch.zhaw.deeplearning4j;
+package ch.zhaw.iwi.deeplearning;
 
 import java.io.File;
 import java.io.IOException;

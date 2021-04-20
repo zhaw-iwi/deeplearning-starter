@@ -1,4 +1,4 @@
-package ch.zhaw.deeplearning4j;
+package ch.zhaw.iwi.deeplearning;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,8 +26,8 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.zhaw.deeplearning4j.chatbot.ChatbotEncDecTrainer;
-import ch.zhaw.deeplearning4j.chatbot.QAIterator4EncDecLSTM;
+import ch.zhaw.iwi.deeplearning.chatbot.ChatbotEncDecTrainer;
+import ch.zhaw.iwi.deeplearning.chatbot.QAIterator4EncDecLSTM;
 
 /**
  * Zurich University of Applied Sciences (ZHAW), Institute for Business

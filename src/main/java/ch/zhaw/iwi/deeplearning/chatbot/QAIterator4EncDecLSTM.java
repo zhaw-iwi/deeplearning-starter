@@ -1,4 +1,4 @@
-package ch.zhaw.deeplearning4j.chatbot;
+package ch.zhaw.iwi.deeplearning.chatbot;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.zhaw.deeplearning4j.Paths;
+import ch.zhaw.iwi.deeplearning.Paths;
 
 /**
  * Zurich University of Applied Sciences (ZHAW), Institute for Business
