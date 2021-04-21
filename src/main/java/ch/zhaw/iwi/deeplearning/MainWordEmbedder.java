@@ -21,7 +21,7 @@ public class MainWordEmbedder {
 	public static void main(String[] args) throws IOException {
 
 		MainWordEmbedder.log.info("Accessing file line by line");
-		String filePath = new File("mtsamples/mtsamples-transcription.txt").getAbsolutePath();
+		String filePath = new File("bible-luke.txt").getAbsolutePath();
 		SentenceIterator iterator = new BasicLineIterator(filePath);
 		iterator.setPreProcessor(new SentencePreProcessor() {
 			@Override
